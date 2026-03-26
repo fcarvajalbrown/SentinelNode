@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    /* ── Target ────────────────────────────────────────────────────────────
+       Node 20 supports ES2022 natively — no need to compile down further.
+       ESNext modules let us use top-level await in index.ts.            */
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    /* ── Output ────────────────────────────────────────────────────────────
+       Compiled JS goes to dist/ — this is what the Dockerfile copies.   */
+    "outDir": "./dist",
+    "rootDir": "./src",
+
+    /* ── Strictness ────────────────────────────────────────────────────────
+       All strict checks on. This is non-negotiable for a security tool.
+       If TypeScript can catch a null-dereference at compile time, it
+       should — not at runtime when a JWT is being verified.             */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* ── DX ────────────────────────────────────────────────────────────────
+       Source maps let you see original TS line numbers in error stacks.
+       Declaration files are not needed — this is an app, not a library. */
+    "sourceMap": true,
+    "declaration": false,
+
+    /* ── Interop ───────────────────────────────────────────────────────────
+       Needed for CommonJS packages like better-sqlite3 and jsonwebtoken
+       that don't have native ESM exports.                               */
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* ── Types ─────────────────────────────────────────────────────────────
+       Only include Node types — no browser globals like window or fetch
+       leaking into server-side code.                                    */
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

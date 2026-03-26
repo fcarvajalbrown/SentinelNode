@@ -1,0 +1,40 @@
+# node-api/.dockerignore
+#
+# Files listed here are excluded from the Docker build context.
+# Smaller build context = faster builds and no accidental secret leaks.
+
+# ── Dependencies ─────────────────────────────────────────────────────────────
+# Never copy local node_modules into the image.
+# The Dockerfile runs npm ci to install fresh inside the container.
+node_modules/
+
+# ── Compiled output ───────────────────────────────────────────────────────────
+# Stage 1 compiles fresh — local dist/ is irrelevant.
+dist/
+
+# ── Environment files ─────────────────────────────────────────────────────────
+# NEVER send real secrets into the build context.
+# Values are injected at runtime via docker-compose.yml environment section.
+.env
+.env.local
+.env.*.local
+
+# ── Data ──────────────────────────────────────────────────────────────────────
+# SQLite database is managed by the named volume, not baked into the image.
+data/
+*.db
+*.sqlite
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── OS and editor noise ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+.git/
+.gitignore

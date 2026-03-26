@@ -1,0 +1,38 @@
+# SentinelNode — docker-compose.yml
+#
+# Usage:
+#   SCAN_PATH=/absolute/path/to/scan docker compose up
+#
+# The SCAN_PATH env var controls which local directory gets mounted
+# into the containers as a read-only scan target at /scan.
+
+services:
+
+  # ── Node.js API + React dashboard ────────────────────────────────────────
+  node-api:
+    build: ./node-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - DB_PATH=/app/data/sentinel.db
+      - RUST_CORE_BIN=/usr/local/bin/sentinel-core
+    volumes:
+      - db-data:/app/data                  # named volume — SQLite persists here
+      - ${SCAN_PATH}:/scan:ro              # bind mount — your local directory
+    depends_on:
+      - rust-core
+    restart: unless-stopped
+
+  # ── Rust scanning core ───────────────────────────────────────────────────
+  rust-core:
+    build: ./rust-core
+    volumes:
+      - ${SCAN_PATH}:/scan:ro              # same read-only bind mount
+    restart: unless-stopped
+
+# ── Named volumes ────────────────────────────────────────────────────────────
+volumes:
+  db-data:                                 # Docker manages this directory

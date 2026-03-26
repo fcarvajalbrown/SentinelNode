@@ -1,0 +1,31 @@
+# SentinelNode — .gitignore
+
+# ── Secrets — NEVER commit these ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Node ─────────────────────────────────────────────────────────────────────
+node_modules/
+dist/
+*.log
+logs/
+
+# ── Rust ─────────────────────────────────────────────────────────────────────
+target/
+Cargo.lock       # remove this line if rust-core becomes a library crate
+
+# ── Database ──────────────────────────────────────────────────────────────────
+data/
+*.db
+*.sqlite
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
