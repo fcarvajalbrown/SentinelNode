@@ -1,0 +1,31 @@
+{
+  "name": "SentinelNode",
+
+  // Use the node-api service from docker-compose.yml as the dev environment.
+  // VS Code will open inside this container.
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "node-api",
+  "workspaceFolder": "/app",
+
+  // Install VS Code extensions inside the container automatically.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "rust-lang.rust-analyzer"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "js/ts.tsdk.path": "/app/node_modules/typescript/lib"
+      }
+    }
+  },
+
+  // Run npm install inside the container after it starts.
+  "postCreateCommand": "npm install",
+
+  // Forward port 3000 so localhost:3000 still works in your browser.
+  "forwardPorts": [3000]
+}
