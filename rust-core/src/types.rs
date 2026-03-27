@@ -18,6 +18,7 @@ pub enum JobType {
 pub struct JobPayload {
     pub job: JobType,
     pub path: String,
+    #[allow(dead_code)]
     pub patterns: Vec<String>,
 }
 
@@ -45,6 +46,9 @@ pub struct Finding {
     pub match_text: String,
     pub pattern: String,
     pub severity: Severity,
+    pub entropy: f64,
+    pub rule_id: String,
+    pub description: String,
 }
 
 // ── Severity ──────────────────────────────────────────────────────────────────
@@ -57,24 +61,42 @@ pub enum Severity {
     Medium,
 }
 
+// ── Detection rule ────────────────────────────────────────────────────────────
+
+/// A single detection rule combining regex, entropy threshold,
+/// severity, and stopwords. Modelled after Gitleaks' rule system.
+pub struct Rule {
+    /// Unique identifier for this rule.
+    pub id: &'static str,
+    /// Human-readable description shown in the UI.
+    pub description: &'static str,
+    /// Regex pattern to match against each line.
+    pub pattern: &'static str,
+    /// Minimum Shannon entropy of the matched value.
+    /// A real secret has entropy >= 3.5. Placeholders like
+    /// "changeme" have entropy ~2.0.
+    pub entropy_min: f64,
+    /// Severity of findings from this rule.
+    pub severity: Severity,
+    /// If the matched string contains any of these words,
+    /// the finding is discarded as a false positive.
+    pub stopwords: &'static [&'static str],
+}
+
 // ── SSE progress events ───────────────────────────────────────────────────────
 
-/// Sent from Rust to Node over the SSE stream during a scan.
 #[derive(Debug, Serialize, Clone)]
 #[allow(dead_code)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum ProgressEvent {
-    /// Emitted periodically during file walking.
     Progress {
         scanned: usize,
         total: usize,
         findings_so_far: usize,
     },
-    /// Emitted once when the scan completes.
     Complete {
         result: JobResult,
     },
-    /// Emitted if the scan fails.
     Error {
         message: String,
     },
@@ -82,12 +104,8 @@ pub enum ProgressEvent {
 
 // ── Watcher state ─────────────────────────────────────────────────────────────
 
-/// Tracks which files have changed since the last full scan.
-/// Shared between the watcher thread and the HTTP handler via Arc<Mutex<>>.
 #[derive(Debug, Default)]
 pub struct WatcherState {
-    /// Files that have been created or modified since last scan.
     pub changed: std::collections::HashSet<String>,
-    /// Whether a full scan has ever been completed.
     pub has_baseline: bool,
 }

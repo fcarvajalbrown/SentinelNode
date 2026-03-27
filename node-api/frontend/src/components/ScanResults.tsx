@@ -1,11 +1,15 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Finding {
   file: string;
   line: number;
   match: string;
   pattern: string;
+  severity: "critical" | "high" | "medium";
+  entropy: number;
+  ruleId: string;
+  description: string;
 }
 
 interface ScanResult {
@@ -15,6 +19,13 @@ interface ScanResult {
   error: string | null;
   totalFiles: number;
   scannedFiles: number;
+  wasIncremental?: boolean;
+}
+
+interface Progress {
+  scanned: number;
+  total: number;
+  findingsSoFar: number;
 }
 
 async function fetchLastScan(): Promise<ScanResult> {
@@ -24,29 +35,55 @@ async function fetchLastScan(): Promise<ScanResult> {
   return data.data;
 }
 
-async function triggerScan(subpath: string): Promise<ScanResult> {
-  const res = await fetch("/api/scanner/scan", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subpath, extraPatterns: [] }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Scan failed");
-  return data.data;
-}
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "text-red-400 border-red-800 bg-red-950",
+  high:     "text-amber-400 border-amber-800 bg-amber-950",
+  medium:   "text-blue-400 border-blue-800 bg-blue-950",
+};
 
 const EXAMPLE_PATHS = [
-  { label: "Entire mounted directory", value: "/" },
-  { label: "SentinelNode project", value: "/SentinelNode" },
-  { label: "Desktop", value: "/" },
-  { label: "Documents", value: "/Documents" },
-  { label: "Custom subpath", value: "" },
+  { label: "Entire directory", value: "/" },
+  { label: "SentinelNode", value: "/SentinelNode" },
+  { label: "Documents",     value: "/Documents" },
+  { label: "Projects",      value: "/Projects" },
 ];
 
+// ── Spinner ───────────────────────────────────────────────────────────────────
+
+function Spinner({ progress }: { progress: Progress | null }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-6">
+      <svg className="w-10 h-10 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+        <path className="opacity-90" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      <div className="space-y-1 text-center">
+        <p className="text-sm text-slate-300">Scanning...</p>
+        {progress && progress.total > 0 && (
+          <p className="text-xs text-slate-400">
+            {progress.scanned.toLocaleString()} of {progress.total.toLocaleString()} files
+            {progress.findingsSoFar > 0 && (
+              <span className="ml-2 text-amber-400">
+                · {progress.findingsSoFar} finding{progress.findingsSoFar !== 1 ? "s" : ""} so far
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function ScanResults() {
-  const [subpath, setSubpath] = useState("/");
-  const queryClient = useQueryClient();
+  const [subpath, setSubpath]     = useState("/");
+  const [scanning, setScanning]   = useState(false);
+  const [progress, setProgress]   = useState<Progress | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const eventSourceRef            = useRef<EventSource | null>(null);
+  const queryClient               = useQueryClient();
 
   const { data: healthData } = useQuery({
     queryKey: ["coreHealth"],
@@ -67,12 +104,72 @@ export default function ScanResults() {
     retry: false,
   });
 
-  const mutation = useMutation({
-    mutationFn: triggerScan,
-    onSuccess: (data) => {
-      queryClient.setQueryData(["lastScan"], data);
-    },
-  });
+  // Clean up SSE connection on unmount.
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+    };
+  }, []);
+
+  function startScan() {
+    if (scanning || !coreOnline) return;
+
+    setScanError(null);
+    setProgress({ scanned: 0, total: 0, findingsSoFar: 0 });
+    setScanning(true);
+
+    // Close any existing connection.
+    eventSourceRef.current?.close();
+
+    const params = new URLSearchParams({ subpath, extraPatterns: "" });
+    const es = new EventSource(`/api/scanner/scan/stream?${params}`);
+    eventSourceRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+
+        if (event.type === "progress") {
+          setProgress({
+            scanned: event.scanned,
+            total: event.total,
+            findingsSoFar: event.findingsSoFar,
+          });
+        }
+
+        if (event.type === "complete") {
+          queryClient.setQueryData(["lastScan"], {
+            path: event.result.path ?? subpath,
+            findings: event.result.findings,
+            completedAt: event.result.completedAt,
+            error: event.result.error,
+            totalFiles: event.result.totalFiles,
+            scannedFiles: event.result.scannedFiles,
+            wasIncremental: event.result.wasIncremental,
+          });
+          setScanning(false);
+          setProgress(null);
+          es.close();
+        }
+
+        if (event.type === "error") {
+          setScanError(event.message);
+          setScanning(false);
+          setProgress(null);
+          es.close();
+        }
+      } catch {
+        // Ignore malformed events.
+      }
+    };
+
+    es.onerror = () => {
+      setScanError("Connection to scanner lost.");
+      setScanning(false);
+      setProgress(null);
+      es.close();
+    };
+  }
 
   return (
     <div className="space-y-6">
@@ -80,9 +177,18 @@ export default function ScanResults() {
       {/* Instructions */}
       <div className="p-4 space-y-1 text-sm bg-slate-700 rounded-xl text-slate-300">
         <p className="font-medium text-white">How it works</p>
-        <p>The scanner reads the directory you set as <code className="text-blue-400">SCAN_PATH</code> in your <code className="text-blue-400">.env</code> file.</p>
-        <p>Use <code className="text-blue-400">/</code> to scan the entire mounted directory, or type a subpath like <code className="text-blue-400">/SentinelNode</code> to narrow the scan.</p>
-        <p className="text-xs text-slate-400">Binary files, images, and files over 1MB are skipped automatically.</p>
+        <p>
+          The scanner reads the directory you set as{" "}
+          <code className="text-blue-400">SCAN_PATH</code> in your{" "}
+          <code className="text-blue-400">.env</code> file.
+        </p>
+        <p>
+          Use <code className="text-blue-400">/</code> to scan the entire
+          mounted directory, or pick a subpath below.
+        </p>
+        <p className="text-xs text-slate-400">
+          Binary files, images, and files over 1 MB are skipped automatically.
+        </p>
       </div>
 
       {/* Scan form */}
@@ -98,6 +204,7 @@ export default function ScanResults() {
             <button
               key={p.label}
               onClick={() => setSubpath(p.value)}
+              disabled={scanning}
               className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                 subpath === p.value
                   ? "bg-blue-600 border-blue-500 text-white"
@@ -114,54 +221,62 @@ export default function ScanResults() {
             type="text"
             value={subpath}
             onChange={(e) => setSubpath(e.target.value)}
+            disabled={scanning}
             placeholder="/ or /subpath"
-            className="flex-1 px-4 py-2 font-mono text-sm text-white border rounded-lg bg-slate-700 border-slate-600 focus:outline-none focus:border-blue-500"
+            className="flex-1 px-4 py-2 font-mono text-sm text-white border rounded-lg bg-slate-700 border-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
           <button
-            onClick={() => mutation.mutate(subpath)}
-            disabled={mutation.isPending || !coreOnline}
+            onClick={startScan}
+            disabled={scanning || !coreOnline}
             className="px-5 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-500 disabled:opacity-50 whitespace-nowrap"
           >
-            {mutation.isPending ? "Scanning..." : "Run scan"}
+            {scanning ? "Scanning..." : "Run scan"}
           </button>
         </div>
 
         {!coreOnline && (
           <p className="mt-2 text-xs text-red-400">
-            Scanner is offline — start Docker and wait for rust-core to come online.
+            Scanner is offline — wait for rust-core to come online.
           </p>
         )}
-        {mutation.isError && (
-          <p className="mt-3 text-sm text-red-400">
-            {mutation.error instanceof Error ? mutation.error.message : "Scan failed"}
-          </p>
+        {scanError && (
+          <p className="mt-3 text-sm text-red-400">{scanError}</p>
         )}
       </div>
 
+      {/* Real progress ring — shown during scan */}
+      {scanning && <Spinner progress={progress} />}
+
       {/* Results */}
-      {isLoading && (
+      {!scanning && isLoading && (
         <p className="text-sm text-slate-400">Loading last scan...</p>
       )}
 
-      {lastScan && (
+      {!scanning && lastScan && (
         <div className="p-6 bg-slate-800 rounded-xl">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-white">
-              Last scan — {lastScan.path}
-            </h3>
+            <div>
+              <h3 className="text-sm font-semibold text-white">
+                Last scan — {lastScan.path}
+              </h3>
+              {lastScan.wasIncremental && (
+                <span className="text-xs text-blue-400">Incremental scan</span>
+              )}
+            </div>
             <span className="text-xs text-slate-500">
               {new Date(lastScan.completedAt).toLocaleString()}
             </span>
           </div>
 
-          {/* File count */}
           <p className="mb-4 text-xs text-slate-400">
-            Scanned {lastScan.scannedFiles?.toLocaleString()} of {lastScan.totalFiles?.toLocaleString()} files
-            {lastScan.totalFiles > 0 && lastScan.scannedFiles < lastScan.totalFiles && (
-              <span className="ml-1 text-slate-500">
-                ({lastScan.totalFiles - lastScan.scannedFiles} skipped — binary or too large)
-              </span>
-            )}
+            Scanned {lastScan.scannedFiles?.toLocaleString()} of{" "}
+            {lastScan.totalFiles?.toLocaleString()} files
+            {lastScan.totalFiles > 0 &&
+              lastScan.scannedFiles < lastScan.totalFiles && (
+                <span className="ml-1 text-slate-500">
+                  ({(lastScan.totalFiles - lastScan.scannedFiles).toLocaleString()} skipped)
+                </span>
+              )}
           </p>
 
           {lastScan.error && (
@@ -173,17 +288,33 @@ export default function ScanResults() {
           ) : (
             <div className="space-y-3">
               <p className="text-sm font-medium text-amber-400">
-                {lastScan.findings.length} finding{lastScan.findings.length !== 1 ? "s" : ""} detected
+                {lastScan.findings.length} finding
+                {lastScan.findings.length !== 1 ? "s" : ""} detected
               </p>
               {lastScan.findings.map((f, i) => (
-                <div key={i} className="p-4 border rounded-lg bg-slate-700 border-slate-600">
+                <div
+                  key={i}
+                  className={`rounded-lg p-4 border ${
+                    SEVERITY_COLORS[f.severity] ?? SEVERITY_COLORS.medium
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-xs text-blue-400">
+                    <span className="font-mono text-xs">
                       {f.file}:{f.line}
                     </span>
-                    <span className="text-xs text-slate-500">{f.pattern}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium capitalize">
+                        {f.severity}
+                      </span>
+                    </div>
                   </div>
-                  <p className="font-mono text-xs text-red-300 break-all">{f.match}</p>
+                  <p className="font-mono text-xs break-all opacity-80">
+                    {f.match}
+                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs opacity-60">{f.description}</p>
+                    <p className="text-xs opacity-40">entropy {f.entropy}</p>
+                  </div>
                 </div>
               ))}
             </div>

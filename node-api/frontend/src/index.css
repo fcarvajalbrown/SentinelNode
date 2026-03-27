@@ -9,3 +9,7 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+.progress-ring-circle {
+  transition: stroke-dasharray 0.3s ease;
+}
