@@ -46,6 +46,9 @@ const STOPWORDS: &[&str] = &[
     "enter", "put_", "here", "override", "redacted",
     "xxxxxxxxxx", "0000000000", "1234567890",
     "abcdefghij", "aaaaaaaaaaaa",
+    "change_me", "change_this", "random_64", "random_32",
+    "hex_string", "your_secret", "my_secret", "secret_here",
+    "different", "another",
 ];
 
 // ── Detection rules ───────────────────────────────────────────────────────────
@@ -302,6 +305,14 @@ fn scan_file(
     };
 
     if content.len() > 1_000_000 {
+        return (vec![], false);
+    }
+
+    // Skip example and template files — they contain placeholder values.
+    let filename = path.file_name().unwrap_or_default().to_string_lossy();
+    if filename.ends_with(".example") || filename.ends_with(".sample")
+        || filename.ends_with(".template") || filename == ".env.example"
+        || filename == ".env.sample" {
         return (vec![], false);
     }
 

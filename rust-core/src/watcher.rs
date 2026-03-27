@@ -15,8 +15,13 @@ use std::time::Duration;
 /// in `state.changed` so the next scan can be incremental.
 pub fn spawn(scan_path: String, state: Arc<Mutex<WatcherState>>) {
     std::thread::spawn(move || {
-        if let Err(e) = run(&scan_path, state) {
-            eprintln!("Watcher error: {}", e);
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if let Err(e) = run(&scan_path, state) {
+                eprintln!("Watcher error: {} — running without incremental scanning", e);
+            }
+        })) {
+            Ok(_) => {}
+            Err(_) => eprintln!("Watcher panicked — running without incremental scanning"),
         }
     });
 }
@@ -33,7 +38,10 @@ fn run(scan_path: &str, state: Arc<Mutex<WatcherState>>) -> notify::Result<()> {
         Config::default().with_poll_interval(Duration::from_secs(2)),
     )?;
 
-    watcher.watch(Path::new(scan_path), RecursiveMode::Recursive)?;
+    // Limit watcher to non-system directories to avoid overwhelming inotify
+    // on large drives mounted through WSL2.
+    watcher.watch(Path::new(scan_path), RecursiveMode::Recursive)
+        .unwrap_or_else(|e| eprintln!("Watcher could not watch {}: {}", scan_path, e));
     println!("Watcher active on: {}", scan_path);
 
     for event in rx {
