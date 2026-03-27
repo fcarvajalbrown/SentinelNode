@@ -14,6 +14,7 @@
 
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { scannerRoutes } from "./modules/scanner/scanner.routes.js";
 import { networkRoutes } from "./modules/network/network.routes.js";
@@ -81,6 +82,16 @@ app.onError((err, c) => {
 app.notFound((c) => {
   return c.json({ error: "Not found", path: c.req.path }, 404);
 });
+
+// ── Static files (React frontend) ────────────────────────────────────────────
+
+/**
+ * Serve the compiled React app for any route that is not an API route.
+ * In production the frontend is built to frontend/dist/ by the Dockerfile.
+ * The wildcard /* must come LAST — after all API routes.
+ */
+app.use("/*", serveStatic({ root: "./frontend/dist" }));
+app.get("/*", serveStatic({ path: "./frontend/dist/index.html" }));
 
 // ── Server ────────────────────────────────────────────────────────────────────
 

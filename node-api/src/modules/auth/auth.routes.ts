@@ -172,4 +172,24 @@ app.post("/refresh", (c) => {
   }
 });
 
+
+/**
+ * GET /api/auth/me
+ *
+ * Returns 200 if the access token cookie is valid, 401 if not.
+ * Called by App.tsx on startup to check if the user is already logged in.
+ */
+
+/**
+ * GET /api/auth/me
+ *
+ * Returns 200 if the access token cookie is valid, 401 if not.
+ * Called by App.tsx on startup to check if the user is already logged in.
+ * Auth is handled by the global authMiddleware in index.ts.
+ */
+app.get("/me", (c) => {
+  const user = c.get("user");
+  return c.json({ success: true, data: { email: user.email } });
+});
+
 export { app as authRoutes };

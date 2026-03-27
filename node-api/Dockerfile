@@ -1,42 +1,48 @@
 # node-api/Dockerfile
 #
-# Multi-stage build:
-#   Stage 1 (builder) — installs ALL dependencies and compiles TypeScript
-#   Stage 2 (runtime) — copies only the compiled output and production deps
-#
-# This keeps the final image small — no TypeScript compiler, no dev tools.
+# Three stages:
+#   Stage 1 (frontend-builder) — builds the React app into frontend/dist/
+#   Stage 2 (api-builder)      — compiles TypeScript into dist/
+#   Stage 3 (runtime)          — runs the app with only what is needed
 
-# ── Stage 1: builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# ── Stage 1: frontend ─────────────────────────────────────────────────────────
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm install
+
+COPY frontend/ ./
+RUN npm run build
+
+# ── Stage 2: API builder ──────────────────────────────────────────────────────
+FROM node:20-alpine AS api-builder
 
 WORKDIR /app
 
-# Copy package files first — Docker caches this layer.
-# If package.json hasn't changed, npm ci is skipped on rebuild.
 COPY package*.json ./
+RUN npm install
 
-# Install ALL dependencies (including devDependencies like typescript)
-RUN npm ci
-
-# Copy source and compile TypeScript -> dist/
 COPY tsconfig.json ./
 COPY src/ ./src/
 
 RUN npm run build
 
-# ── Stage 2: runtime ─────────────────────────────────────────────────────────
+# ── Stage 3: runtime ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
-# Copy package files and install ONLY production dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
-# Copy compiled output from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy compiled API from stage 2
+COPY --from=api-builder /app/dist ./dist
 
-# Create the data directory for the SQLite volume mount point
+# Copy compiled React app from stage 1
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
 RUN mkdir -p /app/data
 
 EXPOSE 3000
