@@ -22,6 +22,7 @@ const SKIP_DIRS: &[&str] = &[
     ".turbo", ".cache", "coverage", "storybook-static",
     ".tox", ".mypy_cache", "site-packages", "vendor",
     "bower_components", ".yarn", ".pnp",
+    "patterns", "fixtures", "testdata", "__fixtures__",
 ];
 
 const SKIP_EXTENSIONS: &[&str] = &[
@@ -154,20 +155,31 @@ const RULES: &[Rule] = &[
     Rule {
         id: "private-key",
         description: "Private key header",
+        // Match the full header line — entropy scored on the key type word.
+        // Require entropy > 2.0 to filter bare pattern strings like "RSA".
         pattern: r"-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----",
-        entropy_min: 0.0,
+        entropy_min: 2.0,
         severity: Severity::Critical,
-        stopwords: &[],
+        stopwords: &["pattern", "regex", "example", "jsluice"],
     },
     Rule {
         id: "env-secret",
         description: "Secret in environment variable",
-        // Matches .env format: SECRET_KEY=<value> where value has high entropy
-        // Uses ^ anchor — only matches at line start to avoid code assignments
+        // Matches .env format: SECRET_KEY=<value>
+        // Entropy scored on the value (group 2 = the actual secret).
+        // 3.5 filters placeholders like "changeme" (entropy ~2.75).
         pattern: r"(?i)^(JWT_SECRET|JWT_REFRESH_SECRET|SECRET_KEY|API_SECRET|APP_SECRET|AUTH_SECRET|ENCRYPTION_KEY|SIGNING_KEY)=([A-Za-z0-9+/=_\-]{20,})",
         entropy_min: 3.5,
         severity: Severity::Critical,
         stopwords: &["changeme", "replace", "your_", "example", "test"],
+    },
+    Rule {
+        id: "pypi-token",
+        description: "PyPI API token",
+        pattern: r"(pypi-[A-Za-z0-9_\-]{50,})",
+        entropy_min: 3.5,
+        severity: Severity::High,
+        stopwords: &["example", "test"],
     },
     Rule {
         id: "generic-api-key",
@@ -309,9 +321,11 @@ fn scan_file(
 
         for compiled in rules {
             if let Some(m) = compiled.regex.captures(line) {
-                // Use capture group 1 if present (the secret value),
-                // otherwise use the full match.
-                let matched = m.get(1)
+// Use the last capture group for entropy scoring — this is the secret
+                // value, not the key name. For env-secret: group 2 is the value.
+                // For single-group rules: group 1 is the value.
+                let last_group = m.len() - 1;
+                let matched = m.get(last_group)
                     .or_else(|| m.get(0))
                     .map(|m| m.as_str())
                     .unwrap_or("");
