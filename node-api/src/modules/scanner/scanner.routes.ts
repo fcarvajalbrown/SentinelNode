@@ -114,4 +114,33 @@ app.get("/last", (c) => {
   }
 });
 
+
+/**
+ * GET /api/scanner/health
+ *
+ * Proxies a health check to rust-core.
+ * Returns 200 if rust-core is reachable, 503 if not.
+ */
+app.get("/health", async (c) => {
+  const rustCoreUrl = process.env.RUST_CORE_URL ?? "http://rust-core:8080";
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
+    const res = await fetch(`${rustCoreUrl}/health`, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    if (res.ok) {
+      return c.json({ status: "ok" });
+    }
+    return c.json({ status: "error" }, 503);
+  } catch {
+    return c.json({ status: "offline" }, 503);
+  }
+});
+
 export { app as scannerRoutes };

@@ -8,13 +8,15 @@ name = "sentinel-core"
 path = "src/main.rs"
 
 [dependencies]
-serde      = { version = "1", features = ["derive"] }
-serde_json = { version = "1" }
-regex      = { version = "1" }
-rayon      = { version = "1" }
-walkdir    = { version = "2" }
-chrono     = { version = "0.4", features = ["serde"] }
-tiny_http  = { version = "0.12" }
+serde             = { version = "1", features = ["derive"] }
+serde_json        = { version = "1" }
+regex             = { version = "1" }
+rayon             = { version = "1" }
+walkdir           = { version = "2" }
+chrono            = { version = "0.4", features = ["serde"] }
+tiny_http         = { version = "0.12" }
+notify            = { version = "6" }
+crossbeam-channel = { version = "0.5" }
 
 [profile.release]
 opt-level     = 3

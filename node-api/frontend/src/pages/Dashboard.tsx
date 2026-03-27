@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import ScanResults from "../components/ScanResults.js";
 import HeaderAudit from "../components/HeaderAudit.js";
 
@@ -7,6 +8,46 @@ interface Props {
 }
 
 type Tab = "scanner" | "network";
+
+async function fetchCoreHealth(): Promise<{ status: string }> {
+  const res = await fetch("/api/scanner/health", { credentials: "include" });
+  if (!res.ok) throw new Error("offline");
+  return res.json();
+}
+
+function CoreStatusDot() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["coreHealth"],
+    queryFn: fetchCoreHealth,
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  if (isLoading) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+        <span className="w-2 h-2 rounded-full bg-slate-500 animate-pulse" />
+        Checking scanner...
+      </span>
+    );
+  }
+
+  if (isError || data?.status !== "ok") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-red-400">
+        <span className="w-2 h-2 bg-red-500 rounded-full" />
+        Scanner offline
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-green-400">
+      <span className="w-2 h-2 bg-green-500 rounded-full" />
+      Scanner online
+    </span>
+  );
+}
 
 export default function Dashboard({ onLogout }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("scanner");
@@ -23,23 +64,26 @@ export default function Dashboard({ onLogout }: Props) {
     <div className="min-h-screen bg-slate-900 text-slate-100">
 
       {/* Navbar */}
-      <header className="border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
         <div>
-          <h1 className="text-lg font-bold text-white tracking-tight">
+          <h1 className="text-lg font-bold tracking-tight text-white">
             SentinelNode
           </h1>
           <p className="text-xs text-slate-500">Security auditing dashboard</p>
         </div>
-        <button
-          onClick={handleLogout}
-          className="text-sm text-slate-400 hover:text-white transition-colors"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-6">
+          <CoreStatusDot />
+          <button
+            onClick={handleLogout}
+            className="text-sm transition-colors text-slate-400 hover:text-white"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       {/* Tabs */}
-      <nav className="border-b border-slate-700 px-6 flex gap-6">
+      <nav className="flex gap-6 px-6 border-b border-slate-700">
         {(["scanner", "network"] as Tab[]).map((tab) => (
           <button
             key={tab}
@@ -56,7 +100,7 @@ export default function Dashboard({ onLogout }: Props) {
       </nav>
 
       {/* Content */}
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-4xl px-6 py-8 mx-auto">
         {activeTab === "scanner" ? <ScanResults /> : <HeaderAudit />}
       </main>
     </div>
