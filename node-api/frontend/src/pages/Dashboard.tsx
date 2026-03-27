@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import ScanResults from "../components/ScanResults.js";
 import HeaderAudit from "../components/HeaderAudit.js";
 import Settings from "./Settings.js";
+import logo from "../assets/logo.svg"; 
 
 interface Props {
   onLogout: () => void;
@@ -63,10 +64,7 @@ export default function Dashboard({ onLogout }: Props) {
 
       {/* Navbar */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-        <div>
-          <h1 className="text-lg font-bold tracking-tight text-white">SentinelNode</h1>
-          <p className="text-xs text-slate-500">Security auditing dashboard</p>
-        </div>
+        <img src={logo} alt="SentinelNode" className="h-10" />
         <div className="flex items-center gap-6">
           <CoreStatusDot />
 

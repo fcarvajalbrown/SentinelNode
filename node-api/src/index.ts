@@ -18,6 +18,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { scannerRoutes } from "./modules/scanner/scanner.routes.js";
 import { networkRoutes } from "./modules/network/network.routes.js";
+import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { authMiddleware } from "./shared/middleware/auth.js";
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ app.use("/api/*", authMiddleware);
 
 app.route("/api/scanner", scannerRoutes);
 app.route("/api/network", networkRoutes);
+app.route("/api/settings", settingsRoutes);
 
 // ── Global error handler ──────────────────────────────────────────────────────
 
