@@ -40,7 +40,7 @@ No Node.js, Rust, or Python installation required on the host machine.
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/sentinelnode.git
+git clone https://github.com/fcarvajalbrown/sentinelnode.git
 cd sentinelnode
 ```
 
@@ -240,4 +240,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 ## Author
 
 Felipe Carvajal Brown
-Instituto Igualdad — Chile
+Chile
