@@ -237,6 +237,30 @@ fn should_skip_extension(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn should_skip_user_dirs(path: &Path, user_dirs: &[&str]) -> bool {
+    if user_dirs.is_empty() { return false; }
+    path.components().any(|c| {
+        let s = c.as_os_str().to_string_lossy();
+        user_dirs.contains(&s.as_ref())
+    })
+}
+
+fn should_skip_user_extensions(path: &Path, user_exts: &[&str]) -> bool {
+    if user_exts.is_empty() { return false; }
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| user_exts.contains(&e.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+fn should_skip_user_files(path: &Path, user_files: &[String]) -> bool {
+    if user_files.is_empty() { return false; }
+    path.file_name()
+        .and_then(|f| f.to_str())
+        .map(|f| user_files.iter().any(|uf| uf == f))
+        .unwrap_or(false)
+}
+
 // ── Rule application ──────────────────────────────────────────────────────────
 
 struct CompiledRule {
@@ -360,6 +384,11 @@ pub fn scan_full(
 ) -> (Vec<Finding>, usize, usize) {
     let rules = compile_rules();
 
+    // Merge hardcoded skip lists with user-defined ignore list.
+    let user_dirs: Vec<&str> = payload.ignore_list.directories.iter().map(|s| s.as_str()).collect();
+    let user_exts: Vec<&str> = payload.ignore_list.extensions.iter().map(|s| s.as_str()).collect();
+    let user_files: Vec<String> = payload.ignore_list.files.clone();
+
     let files: Vec<_> = WalkDir::new(&payload.path)
         .follow_links(false)
         .into_iter()
@@ -367,6 +396,9 @@ pub fn scan_full(
         .filter(|e| e.file_type().is_file())
         .filter(|e| !should_skip_path(e.path()))
         .filter(|e| !should_skip_extension(e.path()))
+        .filter(|e| !should_skip_user_dirs(e.path(), &user_dirs))
+        .filter(|e| !should_skip_user_extensions(e.path(), &user_exts))
+        .filter(|e| !should_skip_user_files(e.path(), &user_files))
         .collect();
 
     let total = files.len();

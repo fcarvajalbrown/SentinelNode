@@ -21,9 +21,16 @@ fn main() {
     // Shared watcher state — lives for the entire process lifetime.
     let watcher_state: Arc<Mutex<WatcherState>> = Arc::new(Mutex::new(WatcherState::default()));
 
-    // Start the filesystem watcher on a background thread.
-    let scan_path = std::env::var("SCAN_PATH").unwrap_or_else(|_| "/scan".to_string());
-    watcher::spawn(scan_path, Arc::clone(&watcher_state));
+    // Filesystem watcher disabled — inotify limits on large drives via WSL2
+    // cause rust-core to crash. Re-enabled in v0.3.0 with OS-specific limits.
+    // let scan_path = std::env::var("SCAN_PATH").unwrap_or_else(|_| "/scan".to_string());
+    // watcher::spawn(scan_path, Arc::clone(&watcher_state));
+    println!("Watcher disabled — full scan mode only");
+
+    // Capture panics to log instead of crashing silently.
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("PANIC: {}", info);
+    }));
 
     println!("sentinel-core listening on {}", addr);
 
@@ -68,7 +75,9 @@ fn main() {
             let progress_tx_clone = progress_tx.clone();
             let state_for_scan = Arc::clone(&watcher_state);
             let state_for_clear = Arc::clone(&watcher_state);
-            std::thread::spawn(move || {
+            std::thread::Builder::new()
+                .stack_size(64 * 1024 * 1024)
+                .spawn(move || {
                 let (findings, total_files, scanned_files) = if is_incremental {
                     scanner::scan_incremental(&payload, changed_files, progress_tx_clone)
                 } else {
@@ -94,7 +103,7 @@ fn main() {
                 };
 
                 let _ = progress_tx.send(ProgressEvent::Complete { result });
-            });
+            }).expect("Failed to spawn scan thread");
 
             // Stream SSE events back to Node as they arrive.
             let mut sse_body = String::new();

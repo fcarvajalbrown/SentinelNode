@@ -13,6 +13,17 @@ pub enum JobType {
     ScanSecrets,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct IgnoreList {
+    #[serde(default)]
+    pub directories: Vec<String>,
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub files: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobPayload {
@@ -20,6 +31,8 @@ pub struct JobPayload {
     pub path: String,
     #[allow(dead_code)]
     pub patterns: Vec<String>,
+    #[serde(default)]
+    pub ignore_list: IgnoreList,
 }
 
 // ── Outbound — final result ───────────────────────────────────────────────────

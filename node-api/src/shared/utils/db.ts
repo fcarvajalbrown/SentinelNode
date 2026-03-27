@@ -32,6 +32,15 @@ const SCHEMA = `
     audited_at  TEXT    NOT NULL,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS ignore_list (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    TEXT    NOT NULL,
+    pattern    TEXT    NOT NULL,
+    type       TEXT    NOT NULL CHECK(type IN ('directory', 'extension', 'file')),
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, pattern)
+  );
 `;
 
 export function getDb(): Database.Database {

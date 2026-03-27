@@ -81,6 +81,22 @@ app.get("/scan/stream", async (c) => {
   const scanPath = `/scan${subpath === "/" ? "" : subpath}`;
   const patterns = [...DEFAULT_PATTERNS, ...extraPatterns];
 
+  // Fetch user ignore list from SQLite.
+  const ignoreList = { directories: [] as string[], extensions: [] as string[], files: [] as string[] };
+  try {
+    const db = getDb();
+    const rows = db.prepare(
+      `SELECT pattern, type FROM ignore_list WHERE user_id = ?`
+    ).all(user.sub) as { pattern: string; type: string }[];
+    for (const row of rows) {
+      if (row.type === "directory") ignoreList.directories.push(row.pattern);
+      else if (row.type === "extension") ignoreList.extensions.push(row.pattern);
+      else if (row.type === "file") ignoreList.files.push(row.pattern);
+    }
+  } catch (err) {
+    console.error("Failed to fetch ignore list:", err);
+  }
+
   c.header("Content-Type", "text/event-stream");
   c.header("Cache-Control", "no-cache");
   c.header("Connection", "keep-alive");
@@ -94,7 +110,7 @@ app.get("/scan/stream", async (c) => {
       const response = await fetch(`${RUST_CORE_URL}/scan/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job: "scan_secrets", path: scanPath, patterns }),
+        body: JSON.stringify({ job: "scan_secrets", path: scanPath, patterns, ignoreList }),
       });
 
       if (!response.body) {
@@ -158,9 +174,22 @@ app.post("/scan", zValidator("json", scanSchema), async (c) => {
   const scanPath = `/scan${subpath === "/" ? "" : subpath}`;
   const patterns = [...DEFAULT_PATTERNS, ...extraPatterns];
 
+  const ignoreList = { directories: [] as string[], extensions: [] as string[], files: [] as string[] };
+  try {
+    const db = getDb();
+    const rows = db.prepare(`SELECT pattern, type FROM ignore_list WHERE user_id = ?`).all(user.sub) as { pattern: string; type: string }[];
+    for (const row of rows) {
+      if (row.type === "directory") ignoreList.directories.push(row.pattern);
+      else if (row.type === "extension") ignoreList.extensions.push(row.pattern);
+      else if (row.type === "file") ignoreList.files.push(row.pattern);
+    }
+  } catch (err) {
+    console.error("Failed to fetch ignore list:", err);
+  }
+
   let result: JobResult;
   try {
-    result = await runJob({ job: "scan_secrets", path: scanPath, patterns });
+    result = await runJob({ job: "scan_secrets", path: scanPath, patterns, ignoreList });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown IPC error";
     return c.json({ success: false, error: `Scan failed: ${message}` }, 500);

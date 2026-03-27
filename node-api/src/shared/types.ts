@@ -23,6 +23,12 @@ export type JobType = "scan_secrets";
  * Payload Node sends to Rust via stdin.
  * Rust reads this, executes the job, and writes a JobResult to stdout.
  */
+export interface IgnoreList {
+  directories: string[];
+  extensions: string[];
+  files: string[];
+}
+
 export interface JobPayload {
   /** Which job to run. */
   job: JobType;
@@ -32,6 +38,7 @@ export interface JobPayload {
 
   /** Regex patterns to match against file contents. */
   patterns: string[];
+  ignoreList?: IgnoreList;
 }
 
 // ── IPC — Rust sends this back to Node via stdout ─────────────────────────────
@@ -151,6 +158,17 @@ export interface ApiError {
 }
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
+
+// ── Ignore list ───────────────────────────────────────────────────────────────
+
+export type IgnoreType = "directory" | "extension" | "file";
+
+export interface IgnoreEntry {
+  id: number;
+  pattern: string;
+  type: IgnoreType;
+  createdAt: string;
+}
 
 // ── Hono context variables ────────────────────────────────────────────────────
 
