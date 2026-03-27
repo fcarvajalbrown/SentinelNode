@@ -3,43 +3,21 @@ name    = "sentinel-core"
 version = "0.1.0"
 edition = "2021"
 
-# ── Binary ────────────────────────────────────────────────────────────────────
-# Produces a single executable called sentinel-core.
-# Node.js spawns this binary via child_process in ipc.ts.
 [[bin]]
 name = "sentinel-core"
 path = "src/main.rs"
 
-# ── Dependencies ──────────────────────────────────────────────────────────────
 [dependencies]
-
-# JSON serialisation and deserialisation.
-# serde_json parses the JobPayload from stdin and serialises
-# the JobResult to stdout.
-serde      = { version = "1",   features = ["derive"] }
+serde      = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
+regex      = { version = "1" }
+rayon      = { version = "1" }
+walkdir    = { version = "2" }
+chrono     = { version = "0.4", features = ["serde"] }
+tiny_http  = { version = "0.12" }
 
-# Regex engine for pattern matching against file contents.
-# The regex crate is safe — it does not allow backtracking exploits.
-regex = { version = "1" }
-
-# Data parallelism — walks the directory tree across multiple threads.
-# This is why we use Rust instead of Node for scanning:
-# Rayon makes CPU-bound work trivially parallel.
-rayon = { version = "1" }
-
-# Recursive directory walker — handles symlinks, permissions errors,
-# and large trees gracefully without stack overflows.
-walkdir = { version = "2" }
-
-# Timestamp generation for JobResult.completedAt.
-chrono = { version = "0.4", features = ["serde"] }
-
-# ── Release profile ───────────────────────────────────────────────────────────
-# Optimise the release binary for size and speed.
-# The Dockerfile builds with --release so these apply in production.
 [profile.release]
-opt-level = 3      # maximum optimisation
-lto       = true   # link-time optimisation — smaller, faster binary
-codegen-units = 1  # single codegen unit — slower compile, better output
-strip     = true   # strip debug symbols — smaller Docker image
+opt-level     = 3
+lto           = true
+codegen-units = 1
+strip         = true

@@ -5,7 +5,11 @@
 
 use serde::{Deserialize, Serialize};
 
-// ── Inbound — Node sends this to Rust via stdin ───────────────────────────────
+#[derive(Debug, Deserialize)]
+pub enum JobType {
+    #[serde(rename = "scan_secrets")]
+    ScanSecrets,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,14 +18,6 @@ pub struct JobPayload {
     pub path: String,
     pub patterns: Vec<String>,
 }
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum JobType {
-    ScanSecrets,
-}
-
-// ── Outbound — Rust sends this to Node via stdout ─────────────────────────────
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

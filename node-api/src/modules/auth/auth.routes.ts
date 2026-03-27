@@ -188,8 +188,18 @@ app.post("/refresh", (c) => {
  * Auth is handled by the global authMiddleware in index.ts.
  */
 app.get("/me", (c) => {
-  const user = c.get("user");
-  return c.json({ success: true, data: { email: user.email } });
+  const token = getCookie(c, "access_token");
+  if (!token) return c.json({ success: false, error: "Unauthorized" }, 401);
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return c.json({ success: false, error: "Server misconfiguration" }, 500);
+
+  try {
+    const payload = jwt.verify(token, secret) as AccessTokenPayload;
+    return c.json({ success: true, data: { email: payload.email } });
+  } catch {
+    return c.json({ success: false, error: "Unauthorized" }, 401);
+  }
 });
 
 export { app as authRoutes };
