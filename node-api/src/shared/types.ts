@@ -68,6 +68,8 @@ export interface JobResult {
 
   /** Any error message if the job failed. Null on success. */
   error: string | null;
+  totalFiles: number;
+  scannedFiles: number;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────

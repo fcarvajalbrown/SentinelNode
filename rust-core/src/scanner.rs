@@ -1,6 +1,7 @@
 /// src/scanner.rs
 ///
 /// Recursive secret scanner using Rayon for parallelism.
+/// Returns findings plus file counts for progress reporting.
 
 use crate::types::{Finding, JobPayload};
 use rayon::prelude::*;
@@ -8,10 +9,11 @@ use regex::Regex;
 use std::fs;
 use walkdir::WalkDir;
 
-/// Scans the directory in payload.path for all patterns in payload.patterns.
-/// Returns a flat list of findings across all files.
-pub fn scan(payload: &JobPayload) -> Vec<Finding> {
-    // Compile all regex patterns upfront — fail fast on invalid patterns.
+/// Scans the directory in payload.path for all patterns.
+/// Returns (findings, total_files, scanned_files).
+/// total_files  = every file found in the tree
+/// scanned_files = files actually read (skips binaries and large files)
+pub fn scan(payload: &JobPayload) -> (Vec<Finding>, usize, usize) {
     let regexes: Vec<(String, Regex)> = payload
         .patterns
         .iter()
@@ -23,7 +25,6 @@ pub fn scan(payload: &JobPayload) -> Vec<Finding> {
         })
         .collect();
 
-    // Collect all readable files from the directory tree.
     let files: Vec<_> = WalkDir::new(&payload.path)
         .follow_links(false)
         .into_iter()
@@ -31,28 +32,37 @@ pub fn scan(payload: &JobPayload) -> Vec<Finding> {
         .filter(|e| e.file_type().is_file())
         .collect();
 
-    // Scan files in parallel using Rayon.
-    files
+    let total_files = files.len();
+
+    // Track how many files were actually read (not skipped).
+    let results: Vec<(Vec<Finding>, bool)> = files
         .par_iter()
-        .flat_map(|entry| scan_file(entry.path(), &payload.path, &regexes))
-        .collect()
+        .map(|entry| {
+            let (findings, was_scanned) = scan_file(entry.path(), &payload.path, &regexes);
+            (findings, was_scanned)
+        })
+        .collect();
+
+    let scanned_files = results.iter().filter(|(_, scanned)| *scanned).count();
+    let findings = results.into_iter().flat_map(|(f, _)| f).collect();
+
+    (findings, total_files, scanned_files)
 }
 
-/// Scans a single file and returns all findings.
+/// Scans a single file. Returns (findings, was_scanned).
+/// was_scanned is false if the file was skipped (binary or too large).
 fn scan_file(
     path: &std::path::Path,
     root: &str,
     regexes: &[(String, Regex)],
-) -> Vec<Finding> {
-    // Skip files that can't be read as UTF-8 — binaries, images, etc.
+) -> (Vec<Finding>, bool) {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(_) => return vec![],
+        Err(_) => return (vec![], false), // binary or unreadable — skip
     };
 
-    // Skip large files — anything over 1MB is unlikely to be a config file.
     if content.len() > 1_000_000 {
-        return vec![];
+        return (vec![], false); // too large — skip
     }
 
     let relative = path
@@ -66,7 +76,6 @@ fn scan_file(
     for (line_number, line) in content.lines().enumerate() {
         for (pattern, regex) in regexes {
             if let Some(m) = regex.find(line) {
-                // Truncate match to 80 chars to avoid logging full secrets.
                 let match_text = m.as_str().chars().take(80).collect();
                 findings.push(Finding {
                     file: relative.clone(),
@@ -78,5 +87,5 @@ fn scan_file(
         }
     }
 
-    findings
+    (findings, true)
 }

@@ -1,7 +1,6 @@
 /// src/types.rs
 ///
 /// IPC contract types — must mirror src/shared/types.ts exactly.
-/// If you change JobPayload or JobResult here, update types.ts too.
 
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +25,8 @@ pub struct JobResult {
     pub findings: Vec<Finding>,
     pub completed_at: String,
     pub error: Option<String>,
+    pub total_files: usize,
+    pub scanned_files: usize,
 }
 
 #[derive(Debug, Serialize)]
