@@ -1,6 +1,6 @@
 # SentinelNode
 
-[![Version](https://img.shields.io/github/v/release/fcarvajalbrown/SentinelNode)](https://github.com/fcarvajalbrown/SentinelNode/releases)
+[![Version](https://img.shields.io/github/v/release/fcarvajalbrown/sentinelnode)](https://github.com/fcarvajalbrown/sentinelnode/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Node](https://img.shields.io/badge/node-20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -240,4 +240,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 ## Author
 
 Felipe Carvajal Brown
-Chile
+— Chile
